@@ -1,10 +1,9 @@
-import cron, { type ScheduledTask } from 'node-cron'
 import { getDb, closeDb, insertCheck, deleteOldChecks } from '../utils/db'
 import { useRuntimeConfig } from '#imports'
 
 let isRunning = false
-let monitorTask: ScheduledTask | null = null
-let cleanupTask: ScheduledTask | null = null
+let monitorTimer: ReturnType<typeof setInterval> | null = null
+let cleanupTimer: ReturnType<typeof setInterval> | null = null
 
 async function performHealthCheck(apiKey: string): Promise<void> {
   if (isRunning) {
@@ -20,7 +19,7 @@ async function performHealthCheck(apiKey: string): Promise<void> {
   const timeoutId = setTimeout(() => controller.abort(), 30000)
 
   try {
-    const response = await $fetch.raw('http://ananapi.com/v1/chat/completions', {
+    const response = await $fetch.raw('https://ananapi.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -79,31 +78,31 @@ export default defineNitroPlugin((nitro) => {
   getDb()
   console.log('[monitor] Database initialized')
 
-  // Health check every 2 minutes
-  monitorTask = cron.schedule('*/2 * * * *', () => {
+  // Health check every 2 minutes (120000ms)
+  monitorTimer = setInterval(() => {
     performHealthCheck(apiKey)
-  })
+  }, 2 * 60 * 1000)
 
   // Run first check immediately
   performHealthCheck(apiKey)
 
-  // Cleanup old data every hour
-  cleanupTask = cron.schedule('0 * * * *', () => {
+  // Cleanup old data every hour (3600000ms)
+  cleanupTimer = setInterval(() => {
     const db = getDb()
     const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
     const deleted = deleteOldChecks(db, thirtyDaysAgo)
     if (deleted > 0) {
       console.log(`[monitor] Cleaned up ${deleted} old records`)
     }
-  })
+  }, 60 * 60 * 1000)
 
   console.log('[monitor] Started — checking every 2 minutes')
 
   // Graceful shutdown
-  nitro.hooks.hook('close', async () => {
+  nitro.hooks.hook('close', () => {
     console.log('[monitor] Shutting down...')
-    await monitorTask?.stop()
-    await cleanupTask?.stop()
+    if (monitorTimer) clearInterval(monitorTimer)
+    if (cleanupTimer) clearInterval(cleanupTimer)
     closeDb()
   })
 })
