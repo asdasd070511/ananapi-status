@@ -30,8 +30,8 @@ const uptimeColor = computed(() => {
 
 const latencyColor = computed(() => {
   if (props.latency === null) return 'text-slate-400'
-  if (props.latency < 500) return 'text-emerald-400'
-  if (props.latency < 2000) return 'text-amber-400'
+  if (props.latency < 8000) return 'text-emerald-400'
+  if (props.latency < 20000) return 'text-amber-400'
   return 'text-red-400'
 })
 
