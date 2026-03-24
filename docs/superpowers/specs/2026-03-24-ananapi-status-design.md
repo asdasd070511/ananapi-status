@@ -105,7 +105,7 @@ CREATE INDEX idx_checks_timestamp ON checks(timestamp);
   1. 確保 `data/` 目錄存在（不存在則自動建立）
   2. 初始化 SQLite 連線（WAL mode）和建表
   3. 驗證 `ANANAPI_KEY` 環境變數存在，缺失時 log 警告並停止監測
-  3. 啟動 `node-cron` 定時任務
+  4. 啟動 `node-cron` 定時任務
 - 健康檢查流程：
   1. 檢查 `isRunning` 鎖，若為 true 則跳過
   2. 設置 `isRunning = true`
