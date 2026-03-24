@@ -1,0 +1,10 @@
+node_modules/
+.nuxt/
+.output/
+data/
+.env
+*.db
+*.db-wal
+*.db-shm
+.superpowers/
+.claude/
