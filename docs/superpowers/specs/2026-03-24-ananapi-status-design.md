@@ -67,11 +67,15 @@ Authorization: Bearer $ANANAPI_KEY
 
 ## 狀態判定閾值
 
-| 狀態 | 條件 |
-|------|------|
-| 綠色 (Operational) | 最近一次檢查成功 且 延遲 < 5000ms |
-| 黃色 (Degraded) | 最近一次檢查成功 但 延遲 >= 5000ms，或最近 5 次中有 1-2 次失敗 |
-| 紅色 (Down) | 最近一次檢查失敗，或最近 5 次中有 3 次以上失敗 |
+依序評估，首個匹配即為當前狀態（紅 > 黃 > 綠）：
+
+| 優先級 | 狀態 | 條件 |
+|--------|------|------|
+| 1 | 紅色 (Down) | 最近一次檢查失敗，或最近 5 次中有 3 次以上失敗 |
+| 2 | 黃色 (Degraded) | 最近一次檢查成功 但 延遲 >= 5000ms，或最近 5 次中有 1-2 次失敗 |
+| 3 | 綠色 (Operational) | 以上條件皆不滿足（最近一次成功 且 延遲 < 5000ms 且 最近 5 次失敗 0 次）|
+
+初始部署時若不足 5 次檢查，以已有記錄數為準。
 
 ## 資料模型
 
@@ -91,24 +95,22 @@ CREATE INDEX idx_checks_timestamp ON checks(timestamp);
 ```
 
 - **SQLite WAL mode**: 啟用以支援並發讀寫
-- **資料保留**: 30 天，每小時執行一次清理（`DELETE FROM checks WHERE timestamp < ?`），由同一個 cron 排程管理
+- **資料保留**: 30 天，由獨立的 `node-cron` 任務每小時整點執行清理（`DELETE FROM checks WHERE timestamp < ?`）
 
 ## Server 端設計
 
 ### Server Plugin (`server/plugins/monitor.ts`)
 
 - 應用啟動時：
-  1. 初始化 SQLite 連線（WAL mode）和建表
-  2. 驗證 `ANANAPI_KEY` 環境變數存在，缺失時 log 警告並停止監測
+  1. 確保 `data/` 目錄存在（不存在則自動建立）
+  2. 初始化 SQLite 連線（WAL mode）和建表
+  3. 驗證 `ANANAPI_KEY` 環境變數存在，缺失時 log 警告並停止監測
   3. 啟動 `node-cron` 定時任務
 - 健康檢查流程：
   1. 檢查 `isRunning` 鎖，若為 true 則跳過
   2. 設置 `isRunning = true`
-  3. 記錄開始時間
-  4. 發送請求（30 秒超時）
-  5. 計算延遲，記錄狀態碼
-  6. 寫入 SQLite
-  7. 設置 `isRunning = false`
+  3. try：記錄開始時間 → 發送請求（30 秒超時） → 計算延遲 → 記錄狀態碼 → 寫入 SQLite
+  4. finally：設置 `isRunning = false`（確保任何異常都不會永久鎖住）
 - 應用關閉時：停止 cron 任務，關閉 SQLite 連線（Nitro `close` hook）
 
 ### API Routes
@@ -124,8 +126,8 @@ CREATE INDEX idx_checks_timestamp ON checks(timestamp);
   "statusCode": 200,
   "uptime24h": 99.7,
   "lastCheck": 1711234567890,
-  "recentChecks": 5,
-  "recentFailures": 0
+  "recentChecks": 5,      // 評估視窗內的檢查數（初始可能 < 5）
+  "recentFailures": 0     // 評估視窗內的失敗數
 }
 ```
 
@@ -151,7 +153,7 @@ CREATE INDEX idx_checks_timestamp ON checks(timestamp);
 ```
 
 **聚合邏輯**：
-- **24h**: 返回每筆原始數據（~720 點）
+- **24h**: 返回每筆原始數據（~720 點），使用統一 JSON 格式（totalChecks=1, avgLatency=該筆延遲）
 - **7d**: 按小時聚合（~168 點），計算該小時內的平均延遲、最大延遲、成功/失敗次數
 - **30d**: 按天聚合（~30 點），同上邏輯
 
