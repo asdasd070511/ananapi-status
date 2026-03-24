@@ -24,6 +24,7 @@ ananapi-status/
 ├── server/
 │   ├── utils/db.ts                 # SQLite connection, schema init, query helpers
 │   ├── utils/status.ts             # Status determination logic (green/yellow/red)
+│   ├── utils/incidents.ts          # Incident grouping logic
 │   ├── plugins/monitor.ts          # Cron job: health check + cleanup
 │   └── api/
 │       ├── status.get.ts           # GET /api/status
@@ -38,8 +39,6 @@ ananapi-status/
 │   └── IncidentTimeline.vue        # Historical incident list
 ├── composables/
 │   └── useStatusPolling.ts         # Polling logic with visibility pause
-├── utils/
-│   └── incidents.ts                # Incident grouping logic (shared utility)
 ├── data/                           # SQLite file lives here (gitignored)
 └── tests/
     └── server/
@@ -953,7 +952,7 @@ git commit -m "feat: add GET /api/checks endpoint with range aggregation"
 - [ ] **Step 1: Implement polling composable**
 
 ```typescript
-import { ref, watch, toValue, onMounted, onUnmounted, type MaybeRefOrGetter } from 'vue'
+import { ref, watch, toValue, onMounted, onUnmounted, type MaybeRefOrGetter, type Ref } from 'vue'
 
 export function useStatusPolling<T>(url: MaybeRefOrGetter<string>, intervalMs = 60000) {
   const data = ref<T | null>(null) as Ref<T | null>
