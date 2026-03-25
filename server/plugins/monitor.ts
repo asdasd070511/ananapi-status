@@ -5,7 +5,7 @@ let isRunning = false
 let monitorTimer: ReturnType<typeof setInterval> | null = null
 let cleanupTimer: ReturnType<typeof setInterval> | null = null
 
-async function performHealthCheck(apiKey: string): Promise<void> {
+async function performHealthCheck(apiKey: string, baseUrl: string, model: string): Promise<void> {
   if (isRunning) {
     console.log('[monitor] Previous check still running, skipping')
     return
@@ -19,14 +19,14 @@ async function performHealthCheck(apiKey: string): Promise<void> {
   const timeoutId = setTimeout(() => controller.abort(), 30000)
 
   try {
-    const response = await $fetch.raw('https://ananapi.com/v1/chat/completions', {
+    const response = await $fetch.raw(`${baseUrl}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
       body: {
-        model: 'gpt-5.4',
+        model,
         max_tokens: 1,
         stream: false,
         messages: [{ role: 'user', content: 'hi' }],
@@ -68,6 +68,8 @@ async function performHealthCheck(apiKey: string): Promise<void> {
 export default defineNitroPlugin((nitro) => {
   const config = useRuntimeConfig()
   const apiKey = config.ananapiKey as string
+  const baseUrl = config.ananapiBaseUrl as string
+  const model = config.ananapiModel as string
 
   if (!apiKey) {
     console.warn('[monitor] ANANAPI_KEY not set — monitoring disabled')
@@ -80,7 +82,7 @@ export default defineNitroPlugin((nitro) => {
 
   // Health check every 2 minutes (120000ms)
   monitorTimer = setInterval(() => {
-    performHealthCheck(apiKey)
+    performHealthCheck(apiKey, baseUrl, model)
   }, 2 * 60 * 1000)
 
   // Run first check immediately
