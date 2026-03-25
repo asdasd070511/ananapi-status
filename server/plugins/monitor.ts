@@ -86,7 +86,7 @@ export default defineNitroPlugin((nitro) => {
   }, 2 * 60 * 1000)
 
   // Run first check immediately
-  performHealthCheck(apiKey)
+  performHealthCheck(apiKey, baseUrl, model)
 
   // Cleanup old data every hour (3600000ms)
   cleanupTimer = setInterval(() => {
