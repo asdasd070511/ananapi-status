@@ -72,8 +72,12 @@ cd "$APP_DIR"
 # ---- Step 4: Setup .env ----
 if [ ! -f "$APP_DIR/.env" ]; then
   warn "No .env file found. Creating template..."
-  read -rp "Enter ANANAPI_KEY: " API_KEY
-  echo "ANANAPI_KEY=$API_KEY" > "$APP_DIR/.env"
+  read -rp "Enter NUXT_ANANAPI_KEY: " API_KEY
+  cat > "$APP_DIR/.env" <<ENVEOF
+NUXT_ANANAPI_KEY=$API_KEY
+NUXT_ANANAPI_BASE_URL=https://www.ananapi.com
+NUXT_ANANAPI_MODEL=gpt-5.4
+ENVEOF
   chown "$APP_USER:$APP_USER" "$APP_DIR/.env"
   chmod 600 "$APP_DIR/.env"
   log ".env created"
@@ -93,13 +97,14 @@ log "Starting with PM2..."
 # Stop existing instance if running
 pm2 delete "$APP_NAME" 2>/dev/null || true
 
-# Create PM2 ecosystem file
+# Create PM2 ecosystem file (Node 22 --env-file loads .env at runtime)
 cat > "$APP_DIR/ecosystem.config.cjs" <<'PMEOF'
 module.exports = {
   apps: [{
     name: 'ananapi-status',
     script: '.output/server/index.mjs',
     cwd: '/opt/ananapi-status',
+    node_args: '--env-file=.env',
     env: {
       PORT: 3000,
       NODE_ENV: 'production',
